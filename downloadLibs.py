@@ -85,8 +85,8 @@ def downloadLIBS(
     csv_source = "dataSticksArray" if use_sticks_data else "dataDopplerArray"
     csv_data = driver.execute_script(
         f"return arrToRealCSV({csv_source})"
-        # kilka razy mi się zdarzyło, że csvSource nie miał wartosci odrazu po zaladowaniu strony, ten js ponizej powinien zawsze dzialac (czeka az csvSource bedzie miało wartość)
-        # f"return (function() {{ while ({csvSource} === null) {{}}; return arrToRealCSV({csvSource}) }})()"
+        # kilka razy mi się zdarzyło, że csv_source nie miał wartosci odrazu po zaladowaniu strony, ten js ponizej powinien zawsze dzialac (czeka az csv_source bedzie miało wartość)
+        # f"return (function() {{ while ({csv_source} === null) {{}}; return arrToRealCSV({csv_source}) }})()"
     )
 
     df = pd.read_csv(io.StringIO(csv_data), sep=",")
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     if df is None:
         print("Spektrum nie istnieje/blad strony")
     else:
-        # wypelnienie pustych komorek zerami, potencjalnie to powinno sie zawsze dziac w downloadSpectrum()
+        # wypelnienie pustych komorek zerami, potencjalnie to powinno sie zawsze dziac w downloadLIBS()
         df = df.fillna(0.0)
         print(df)
 
