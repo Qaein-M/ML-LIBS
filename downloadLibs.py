@@ -24,7 +24,7 @@ def downloadLIBS(
     max_charge=2,
     min_rel_intensity=0.01,
     intensity_scale=1,
-    useSticksData=False,
+    use_sticks_data=False,
 ) -> pd.DataFrame | None:
     """
     parametry:
@@ -44,8 +44,8 @@ def downloadLIBS(
         `resolution`: rozdzielczość
         `T_e`: temperatura elektronowa plazmy
         `N_e`: gęstość elektronowa plazmy
-        `min_charge`: minimalna wartościowość
-        `max_charge`: maksymalna wartościowość (`CHARGE_NO_LIMIT` zeby nie bylo górnego ograniczenia)
+        `min_charge`: minimalna wartościowość (licząc od zera, 0 to I)
+        `max_charge`: maksymalna wartościowość (`CHARGE_NO_LIMIT` zeby nie bylo górnego ograniczenia, licząc od jeden, 1 to I)
         `min_rel_intensity`: ? w sumie nie rozumiem co to i na stronie nie ma wyjaśnienia
         `intensity_scale`:
             `1` dla "Energy flux" \n
@@ -56,42 +56,40 @@ def downloadLIBS(
     (za to `1e-17` już jest ok jako liczba)
     """
 
-    libsURL = ""
-    if isinstance(elements, list):
-        composition = [f"{el}%3A{p}" for (el, p) in elements]
-        composition = "%3B".join(composition)
+    elements = elements if isinstance(elements, list) else [(elements, 100)]
 
-        myPart = [f"mytext%5B%5D={el}&myperc%5B%5D={p}" for (el, p) in elements]
-        myPart = "&".join(myPart)
+    composition = [f"{el}%3A{p}" for (el, p) in elements]
+    composition = "%3B".join(composition)
 
-        # tutaj możnaby było się pobawić i dodać oddzielny zakres wartosciowosci dla kazdego pierwiastka ale chyba tego nie potrzebujemy
-        spectra = [f"{el}{min_charge}-{max_charge}" for (el, _) in elements]
-        spectra = "%2C".join(spectra)
+    mypart = [f"mytext%5B%5D={el}&myperc%5B%5D={p}" for (el, p) in elements]
+    mypart = "&".join(mypart)
 
-        libsURL = f"https://physics.nist.gov/cgi-bin/ASD/lines1.pl?composition={composition}&{myPart}&spectra={spectra}&low_w={lower_wavelength}&limits_type=0&upp_w={upper_wavelength}&show_av={av}&unit={unit}&resolution={resolution}&temp={T_e}&eden={N_e}&maxcharge={max_charge}&min_rel_int={min_rel_intensity}&int_scale={intensity_scale}&libs=1"
-    else:
-        libsURL = f"https://physics.nist.gov/cgi-bin/ASD/lines1.pl?composition={elements}%3A100&mytext%5B%5D={elements}&myperc%5B%5D=100&spectra={elements}{min_charge}-{max_charge}&low_w={lower_wavelength}&limits_type=0&upp_w={upper_wavelength}&show_av={av}&unit={unit}&resolution={resolution}&temp={T_e}&eden={N_e}&maxcharge={max_charge}&min_rel_int={min_rel_intensity}&int_scale={intensity_scale}&libs=1"
+    # tutaj możnaby było się pobawić i dodać oddzielny zakres wartosciowosci dla kazdego pierwiastka ale chyba tego nie potrzebujemy
+    spectra = [f"{el}{min_charge}-{max_charge}" for (el, _) in elements]
+    spectra = "%2C".join(spectra)
+
+    libsURL = f"https://physics.nist.gov/cgi-bin/ASD/lines1.pl?composition={composition}&{mypart}&spectra={spectra}&low_w={lower_wavelength}&limits_type=0&upp_w={upper_wavelength}&show_av={av}&unit={unit}&resolution={resolution}&temp={T_e}&eden={N_e}&maxcharge={max_charge}&min_rel_int={min_rel_intensity}&int_scale={intensity_scale}&libs=1"
 
     driver.get(libsURL)
 
-    missingData_h2 = driver.find_elements(By.XPATH, "/html/body/h2")
-    if missingData_h2:
-        if missingData_h2[0].text == "Error Message:":
+    missing_data_h2 = driver.find_elements(By.XPATH, "/html/body/h2")
+    if missing_data_h2:
+        if missing_data_h2[0].text == "Error Message:":
             return None  # brak spektrum w bazie
 
-    serviceUnavail_h1 = driver.find_elements(By.XPATH, "/html/body/h1")
-    if serviceUnavail_h1:
-        if serviceUnavail_h1[0].text == "Service Unavailable":
+    service_unavail_h1 = driver.find_elements(By.XPATH, "/html/body/h1")
+    if service_unavail_h1:
+        if service_unavail_h1[0].text == "Service Unavailable":
             return None  # stronka ma jakies problemy
 
-    csvSource = "dataSticksArray" if useSticksData else "dataDopplerArray"
-    csvData = driver.execute_script(
-        f"return arrToRealCSV({csvSource})"
+    csv_source = "dataSticksArray" if use_sticks_data else "dataDopplerArray"
+    csv_data = driver.execute_script(
+        f"return arrToRealCSV({csv_source})"
         # kilka razy mi się zdarzyło, że csvSource nie miał wartosci odrazu po zaladowaniu strony, ten js ponizej powinien zawsze dzialac (czeka az csvSource bedzie miało wartość)
         # f"return (function() {{ while ({csvSource} === null) {{}}; return arrToRealCSV({csvSource}) }})()"
     )
 
-    df = pd.read_csv(io.StringIO(csvData), sep=",")
+    df = pd.read_csv(io.StringIO(csv_data), sep=",")
     return df
 
 
@@ -103,12 +101,16 @@ if __name__ == "__main__":
     options.add_argument("--headless=new")
     driver = webdriver.Chrome(options=options)
 
+    # Pt II+
+    # df = downloadLIBS(driver, "Pt", min_charge=1)
+
+    # Cu 40%, Mn 20%, Au 40%
     df = downloadLIBS(driver, [("Cu", 40), ("Mn", 20), ("Au", 40)])
 
     if df is None:
         print("Spektrum nie istnieje/blad strony")
     else:
-        # wypelnienie pustych komorek zerami, potencjalnie to powinno sie dziac automatycznie w downloadSpectrum(), ale nie wiem czy te miejsca na pewno powinny byc zerami.
+        # wypelnienie pustych komorek zerami, potencjalnie to powinno sie zawsze dziac w downloadSpectrum()
         df = df.fillna(0.0)
         print(df)
 
