@@ -23,7 +23,7 @@ def downloadLIBS(
     min_charge=0,
     max_charge=2,
     min_rel_intensity=0.01,
-    intensity_scale=1,
+    intensity_scale=2,
     use_sticks_data=False,
 ) -> pd.DataFrame | None:
     """
@@ -66,10 +66,12 @@ def downloadLIBS(
 
     # tutaj możnaby było się pobawić i dodać oddzielny zakres wartosciowosci dla kazdego pierwiastka ale chyba tego nie potrzebujemy
     spectra = [f"{el}{min_charge}-{max_charge}" for (el, _) in elements]
+    # spectra = [f"{el}" for (el, _) in elements]
     spectra = "%2C".join(spectra)
 
     libsURL = f"https://physics.nist.gov/cgi-bin/ASD/lines1.pl?composition={composition}&{mypart}&spectra={spectra}&low_w={lower_wavelength}&limits_type=0&upp_w={upper_wavelength}&show_av={av}&unit={unit}&resolution={resolution}&temp={T_e}&eden={N_e}&maxcharge={max_charge}&min_rel_int={min_rel_intensity}&int_scale={intensity_scale}&libs=1"
 
+    print(libsURL)
     driver.get(libsURL)
 
     missing_data_h2 = driver.find_elements(By.XPATH, "/html/body/h2")
@@ -99,13 +101,27 @@ if __name__ == "__main__":
 
     options = Options()
     options.add_argument("--headless=new")
+    options.page_load_strategy = "eager"
+    prefs = {
+        "profile.managed_default_content_settings.images": 2,  # Block images
+        "profile.default_content_setting_values.notifications": 2,
+        "profile.managed_default_content_settings.stylesheets": 2,  # Optional: Block CSS
+    }
+    options.add_experimental_option("prefs", prefs)
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-extensions")
     driver = webdriver.Chrome(options=options)
 
     # Pt II+
     # df = downloadLIBS(driver, "Pt", min_charge=1)
 
     # Cu 40%, Mn 20%, Au 40%
-    df = downloadLIBS(driver, [("Cu", 40), ("Mn", 20), ("Au", 40)])
+    # for i in range(0, 10):
+    # print(i)
+    df = downloadLIBS(
+        driver,
+        [("Si", 8.48), ("Fe", 36.36), ("Be", 31.21), ("Ni", 0.03), ("C", 23.92)],
+    )
 
     if df is None:
         print("Spektrum nie istnieje/blad strony")
